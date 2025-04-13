@@ -15,6 +15,6 @@ transformers>=4.30.0
 torch>=2.0.0
 plotly
 google-genai
-spacy
-
+spacy==3.7.2
+cython
 https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz
