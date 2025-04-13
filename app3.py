@@ -34,7 +34,7 @@ if "evaluation_results" not in st.session_state:
     st.session_state.evaluation_results = []
 
 # Sidebar
-st.sidebar.title("Text Evaluation Dashboard")
+st.sidebar.title("Evaluation Dashboard")
 st.sidebar.info(
     "This app evaluates text using multiple metrics including accuracy, "
     "completeness, clarity, relevance, coherence, readability, and safety."
@@ -388,15 +388,148 @@ if selected_tab == "New Evaluation":
             st.subheader("Coherence Analysis")
             coherence = results["coherence"]
             
-            st.metric("Coherence Score", f"{coherence['coherence_score']}/10")
-            st.write(f"**Overall Quality:** {coherence['overall_quality']}")
-
+            # Create columns for metrics and visualization
+            col1, col2 = st.columns([1, 1])
             
-            if 'details' in coherence and coherence['details']:
-                st.subheader("Paragraph Coherence Details")
-                for detail in coherence['details']:
-                    st.write(f"Between paragraphs {detail['between'][0]+1} and {detail['between'][1]+1}: "
-                             f"Score {detail['score']:.4f} ({detail['quality']})")
+            with col1:
+                st.metric("Coherence Score", f"{coherence['coherence_score']}/10")
+                st.write(f"**Overall Quality:** {coherence.get('overall_quality', 'N/A')}")
+                
+                # Display paragraph count info
+                if coherence.get('evaluated_paragraph_count'):
+                    st.write(f"**Paragraphs Analyzed:** {coherence['evaluated_paragraph_count']}")
+                
+                if coherence.get('average_pairwise_coherence'):
+                    st.write(f"**Average Pairwise Coherence:** {coherence['average_pairwise_coherence']:.4f}")
+                
+                # Display transition quality summary if available
+                if coherence.get('transition_quality_summary'):
+                    st.subheader("Transition Quality Distribution")
+                    
+                    # Create a DataFrame for the summary
+                    summary_data = []
+                    for quality, count in coherence['transition_quality_summary'].items():
+                        summary_data.append({
+                            "Quality": quality,
+                            "Count": count,
+                            "Percentage": f"{(count / sum(coherence['transition_quality_summary'].values()) * 100):.1f}%" if sum(coherence['transition_quality_summary'].values()) > 0 else "0%"
+                        })
+                    
+                    # Sort by quality level (High, Medium, Low, Very Low)
+                    quality_order = {"High": 1, "Medium": 2, "Low": 3, "Very Low": 4}
+                    summary_data.sort(key=lambda x: quality_order.get(x["Quality"], 5))
+                    
+                    # Display as DataFrame
+                    summary_df = pd.DataFrame(summary_data)
+                    st.dataframe(summary_df, use_container_width=True)
+                    
+                    # Create pie chart for transition quality distribution
+                    if sum(coherence['transition_quality_summary'].values()) > 0:
+                        pie_data = pd.DataFrame({
+                            'Quality': coherence['transition_quality_summary'].keys(),
+                            'Count': coherence['transition_quality_summary'].values()
+                        })
+                        
+                        # Use custom colors for different quality levels
+                        colors = {
+                            'High': '#2ca02c',     # Green
+                            'Medium': '#1f77b4',   # Blue
+                            'Low': '#ff7f0e',      # Orange
+                            'Very Low': '#d62728'  # Red
+                        }
+                        
+                        fig = px.pie(
+                            pie_data, 
+                            values='Count', 
+                            names='Quality',
+                            color='Quality',
+                            color_discrete_map=colors,
+                            title="Transition Quality Distribution"
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                # Show paragraph transition details if available
+                if 'details' in coherence and coherence['details']:
+                    # First create a table display
+                    st.subheader("Paragraph Coherence Details")
+                    
+                    # Create a DataFrame for better display
+                    detail_data = []
+                    for detail in coherence['details']:
+                        from_para = detail.get('from_paragraph', detail.get('between', [0, 0])[0])
+                        to_para = detail.get('to_paragraph', detail.get('between', [0, 1])[1])
+                        
+                        detail_data.append({
+                            "From": f"P{from_para+1}",
+                            "To": f"P{to_para+1}",
+                            "Score": detail['score'],
+                            "Quality": detail['quality']
+                        })
+                    
+                    if detail_data:
+                        detail_df = pd.DataFrame(detail_data)
+                        st.dataframe(detail_df, use_container_width=True)
+                    
+                    # Then create visual representation of coherence between paragraphs
+                    scores = [detail['score'] for detail in coherence['details']]
+                    
+                    # Generate labels based on available fields in the details
+                    if 'from_paragraph' in coherence['details'][0]:
+                        labels = [f"P{detail['from_paragraph']+1}→P{detail['to_paragraph']+1}" for detail in coherence['details']]
+                    else:
+                        # Fallback to old format if needed
+                        labels = [f"P{detail['between'][0]+1}→P{detail['between'][1]+1}" for detail in coherence['details']]
+                    
+                    # Color map based on score
+                    colors = [
+                        '#d62728' if score < 0.3 else      # Red for Very Low
+                        '#ff7f0e' if score < 0.5 else      # Orange for Low
+                        '#1f77b4' if score < 0.7 else      # Blue for Medium
+                        '#2ca02c' for score in scores      # Green for High
+                    ]
+                    
+                    fig = go.Figure(data=[
+                        go.Bar(
+                            x=labels,
+                            y=scores,
+                            marker_color=colors,
+                            text=[f"{score:.4f}" for score in scores],
+                            textposition='auto',
+                        )
+                    ])
+                    
+                    fig.update_layout(
+                        title="Coherence Between Consecutive Paragraphs",
+                        xaxis_title="Paragraph Pairs",
+                        yaxis_title="Coherence Score",
+                        yaxis=dict(range=[0, 1])
+                    )
+                    
+                    # Add a horizontal line at thresholds
+                    for threshold, label, color in [(0.3, "Very Low/Low", "#ff7f0e"), 
+                                                    (0.5, "Low/Medium", "#1f77b4"), 
+                                                    (0.7, "Medium/High", "#2ca02c")]:
+                        fig.add_shape(
+                            type="line",
+                            x0=-0.5,
+                            y0=threshold,
+                            x1=len(labels)-0.5,
+                            y1=threshold,
+                            line=dict(color=color, width=1, dash="dash"),
+                        )
+                        fig.add_annotation(
+                            x=len(labels)-0.5,
+                            y=threshold,
+                            xref="x",
+                            yref="y",
+                            text=label,
+                            showarrow=False,
+                            xanchor="right",
+                            bgcolor="rgba(255,255,255,0.8)"
+                        )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
         
         with tabs[4]:
             st.subheader("Readability Analysis")
@@ -534,7 +667,15 @@ elif selected_tab == "History":
                     
                     with col2:
                         st.metric("Coherence", f"{selected_result['coherence']['coherence_score']}/10")
-                        st.write(f"Quality: {selected_result['coherence']['overall_quality']}")
+                        st.write(f"Quality: {selected_result['coherence'].get('overall_quality', 'N/A')}")
+                        
+                        if selected_result['coherence'].get('average_pairwise_coherence'):
+                            st.write(f"Average: {selected_result['coherence']['average_pairwise_coherence']:.4f}")
+                        elif selected_result['coherence'].get('average_coherence'):  # For backward compatibility
+                            st.write(f"Average: {selected_result['coherence']['average_coherence']:.4f}")
+                        
+                        if selected_result['coherence'].get('evaluated_paragraph_count'):
+                            st.write(f"Paragraphs: {selected_result['coherence']['evaluated_paragraph_count']}")
                     
                     with col3:
                         st.metric("Safety Score", f"{selected_result['safety_score']:.2f}")
@@ -543,6 +684,62 @@ elif selected_tab == "History":
                         st.write(f"Dale-Chall: {readability['dale_chall']['score']:.2f}")
                         st.write(f"Gunning Fog: {readability['gunning_fog']['score']:.2f}")
                         st.write(f"Flesch: {readability['flesch']['score']:.2f}")
+                    
+                    # Add coherence details if available with enhanced visualization
+                    if 'details' in selected_result['coherence'] and selected_result['coherence']['details']:
+                        st.subheader("Coherence Between Paragraphs")
+                        
+                        col1, col2 = st.columns([1, 1])
+                        
+                        with col1:
+                            # Create a DataFrame for better display
+                            detail_data = []
+                            for detail in selected_result['coherence']['details']:
+                                # Handle both new and old format
+                                if 'from_paragraph' in detail:
+                                    detail_data.append({
+                                        "From": f"P{detail['from_paragraph']+1}",
+                                        "To": f"P{detail['to_paragraph']+1}",
+                                        "Score": detail['score'],
+                                        "Quality": detail['quality']
+                                    })
+                                else:
+                                    detail_data.append({
+                                        "Paragraphs": f"{detail['between'][0]+1} → {detail['between'][1]+1}",
+                                        "Score": detail['score'],
+                                        "Quality": detail['quality']
+                                    })
+                            
+                            if detail_data:
+                                detail_df = pd.DataFrame(detail_data)
+                                st.dataframe(detail_df, use_container_width=True)
+                        
+                        with col2:
+                            # Display transition quality summary if available
+                            if selected_result['coherence'].get('transition_quality_summary'):
+                                # Create pie chart for transition quality distribution
+                                pie_data = pd.DataFrame({
+                                    'Quality': selected_result['coherence']['transition_quality_summary'].keys(),
+                                    'Count': selected_result['coherence']['transition_quality_summary'].values()
+                                })
+                                
+                                # Use custom colors for different quality levels
+                                colors = {
+                                    'High': '#2ca02c',     # Green
+                                    'Medium': '#1f77b4',   # Blue
+                                    'Low': '#ff7f0e',      # Orange
+                                    'Very Low': '#d62728'  # Red
+                                }
+                                
+                                fig = px.pie(
+                                    pie_data, 
+                                    values='Count', 
+                                    names='Quality',
+                                    color='Quality',
+                                    color_discrete_map=colors,
+                                    title="Transition Quality Distribution"
+                                )
+                                st.plotly_chart(fig, use_container_width=True)
                 
                 with tabs[3]:
                     st.json(selected_result)
@@ -579,9 +776,18 @@ elif selected_tab == "Metrics Explanation":
     
     This dashboard uses several metrics to evaluate text quality:
 
-    
     ### Coherence
     Evaluates the logical flow and connection between paragraphs and ideas in the text.
+    
+    - **Coherence Score**: Overall score (0-10) representing how well paragraphs connect to each other
+    - **Quality Levels**: 
+      - **High** (0.7-1.0): Strong connections between paragraphs with clear flow
+      - **Medium** (0.5-0.7): Adequate connections but some transitions could be improved
+      - **Low** (0.3-0.5): Weak connections with noticeable jumps between ideas
+      - **Very Low** (0.0-0.3): Poor connections with abrupt or confusing transitions
+    
+    - **Transition Quality Distribution**: Shows the proportion of transitions at each quality level
+    - **Paragraph Coherence Details**: Provides scores for each paragraph-to-paragraph transition
     
     ### Readability Metrics
     #### Dale-Chall Score
