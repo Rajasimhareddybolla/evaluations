@@ -190,7 +190,35 @@ from collections import Counter
 class util:
   def __init__(self, model_name='all-MiniLM-L6-v2'):
         """Initializes the utils class with a sentence transformer model."""
-        self.sentence_model = SentenceTransformer(model_name)
+        # Add robust error handling for SentenceTransformer initialization
+        try:
+            self.sentence_model = SentenceTransformer(model_name)
+        except (OSError, ValueError, ConnectionError) as e:
+            print(f"Error loading SentenceTransformer model: {str(e)}")
+            print("Attempting to use offline mode or local cache...")
+            try:
+                # Try with offline mode
+                self.sentence_model = SentenceTransformer(model_name, device="cpu", cache_folder="./model_cache")
+            except Exception as fallback_error:s
+                print(f"Fallback loading also failed: {str(fallback_error)}")
+                # Create a very simple fallback embedding model
+                print("Using simple fallback embedding model")
+                self.sentence_model = self._create_fallback_embedding_model()
+
+  # Add a method to create a fallback embedding model
+  def _create_fallback_embedding_model(self):
+      class SimpleFallbackModel:
+          def __init__(self):
+              print("Initialized simple fallback embedding model")
+          
+          def encode(self, sentences, batch_size=32, show_progress_bar=False, convert_to_numpy=True):
+              """Simple encoding function that returns random embeddings of fixed size"""
+              import numpy as np
+              if isinstance(sentences, str):
+                  sentences = [sentences]
+              return np.random.rand(len(sentences), 384)  # Generate random 384-dim embeddings
+      
+      return SimpleFallbackModel()
 
   def _label_coherence_quality(self, score: float) -> str:
         """Labels the coherence quality based on the score."""

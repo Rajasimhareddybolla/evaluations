@@ -30,12 +30,30 @@ st.set_page_config(
 # Initialize utility classes
 @st.cache_resource
 def load_resources():
-    return util(), Gemini()
+    try:
+        util_instance = util()
+        gemini_instance = Gemini()
+        return util_instance, gemini_instance
+    except Exception as e:
+        st.error(f"Error initializing resources: {str(e)}")
+        # Return minimal functional instances
+        try:
+            return util(use_fallback=True), Gemini()
+        except Exception as fallback_error:
+            st.error(f"Critical error: {str(fallback_error)}")
+            return None, None
 
 # Make sure torch is imported after the environment variables are set
 # This prevents the error from occurring
 with st.spinner("Loading models..."):
-    utils_obj, gemini_obj = load_resources()
+    try:
+        utils_obj, gemini_obj = load_resources()
+        if utils_obj is None or gemini_obj is None:
+            st.error("Failed to initialize required resources. Some features may be unavailable.")
+    except Exception as e:
+        st.error(f"Error loading resources: {str(e)}")
+        st.warning("Running with limited functionality")
+        utils_obj, gemini_obj = None, None
 
 # Session state initialization
 if "history" not in st.session_state:

@@ -1,6 +1,22 @@
 [server]
 runOnSave = false
 fileWatcherType = "none"
+maxUploadSize = 200
+enableCORS = true
+enableXsrfProtection = true
 
 [global]
 disableWatchdogWarning = true
+developmentMode = false
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"
+
+[logger]
+level = "warning"
+
+[cache]
+type = "memory"
