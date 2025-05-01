@@ -199,11 +199,11 @@ class util:
             try:
                 # Try with offline mode
                 self.sentence_model = SentenceTransformer(model_name, device="cpu", cache_folder="./model_cache")
-            except Exception as fallback_error:s
-                print(f"Fallback loading also failed: {str(fallback_error)}")
-                # Create a very simple fallback embedding model
-                print("Using simple fallback embedding model")
-                self.sentence_model = self._create_fallback_embedding_model()
+            except Exception as fallback_error:
+              print(f"Fallback loading also failed: {str(fallback_error)}")
+              # Create a very simple fallback embedding model
+              print("Using simple fallback embedding model")
+              self.sentence_model = self._create_fallback_embedding_model()
 
   # Add a method to create a fallback embedding model
   def _create_fallback_embedding_model(self):
