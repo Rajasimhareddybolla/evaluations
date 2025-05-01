@@ -1,4 +1,12 @@
+# Fix for PyTorch/Streamlit compatibility issue - Must be at the very top of the file
 import os
+import sys
+
+# Configure Streamlit to exclude torch modules from module watching
+# Specifically target torch.classes which causes the error with __path__._path
+os.environ["STREAMLIT_WATCH_EXCLUDES"] = "torch,torchvision,torchaudio,torch._classes"
+os.environ["STREAMLIT_SERVER_WATCH_EXCLUDES"] = "torch,torchvision,torchaudio,torch._classes"
+
 import json
 import re
 import time
@@ -7,6 +15,8 @@ import numpy as np
 import dotenv
 from concurrent.futures import ThreadPoolExecutor
 import threading
+
+# Now it's safe to import torch after setting the environment variables
 import torch
 
 # Import necessary libraries

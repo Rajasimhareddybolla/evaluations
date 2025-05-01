@@ -1,10 +1,17 @@
+# Fix for PyTorch/Streamlit compatibility issue - Must be at the very top of the file
+import os
+# Configure Streamlit to exclude torch from module watching
+os.environ["STREAMLIT_WATCH_EXCLUDES"] = "torch,torchvision,torchaudio,torch._classes"
+# Also exclude specific problematic modules
+os.environ["STREAMLIT_SERVER_WATCH_EXCLUDES"] = "torch,torchvision,torchaudio,torch._classes"
+
+import sys
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import json
-import os
 import time
 import plotly.express as px
 import plotly.graph_objects as go
@@ -25,7 +32,10 @@ st.set_page_config(
 def load_resources():
     return util(), Gemini()
 
-utils_obj, gemini_obj = load_resources()
+# Make sure torch is imported after the environment variables are set
+# This prevents the error from occurring
+with st.spinner("Loading models..."):
+    utils_obj, gemini_obj = load_resources()
 
 # Session state initialization
 if "history" not in st.session_state:
