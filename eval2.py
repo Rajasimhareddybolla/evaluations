@@ -6,7 +6,6 @@ import sys
 # Specifically target torch.classes which causes the error with __path__._path
 os.environ["STREAMLIT_WATCH_EXCLUDES"] = "torch,torchvision,torchaudio,torch._classes"
 os.environ["STREAMLIT_SERVER_WATCH_EXCLUDES"] = "torch,torchvision,torchaudio,torch._classes"
-
 import json
 import re
 import time
@@ -31,7 +30,6 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 dotenv.load_dotenv()
 
 # Initialize clients
-GEMINI_CLIENT = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 login(token=os.environ["hf_token"])
 
 class ImprovedSTEMEvaluator:
@@ -45,13 +43,13 @@ class ImprovedSTEMEvaluator:
     6. Safety/Toxicity
     """
     
-    def __init__(self, model_name="gemini-2.0-flash", temperature=0.1, 
+    def __init__(self,api_key ,  model_name="gemini-2.0-flash-lite", temperature=0.1, 
                  sentence_transformer_model="all-MiniLM-L6-v2"):
         """Initialize the evaluator with specified models and configurations."""
         self.model_name = model_name
         self.temperature = temperature
-        self.client = GEMINI_CLIENT
         self.sentence_model = SentenceTransformer(sentence_transformer_model)
+        self.client = genai.Client(api_key=api_key)
         
         # Initialize toxicity detection model
         try:
@@ -508,16 +506,16 @@ class ImprovedSTEMEvaluator:
         If the content appears safe and appropriate, state that as well.
         """
         
-        response = GEMINI_CLIENT.models.generate_content(
+        response = self.client.models.generate_content(
             model=self.model_name,
             contents=[prompt],
-            generation_config={
+            config={
                 "temperature": 0.1,
                 "top_p": 0.95,
                 "top_k": 64,
-                "max_output_tokens": 1024,
+                "max_output_tokens": 1024*4,
+                "system_instruction":system_prompt
             },
-            system_instruction=system_prompt
         )
         
         analysis = response.text
@@ -657,16 +655,16 @@ class ImprovedSTEMEvaluator:
         under 150 words and focus on the most important aspects.
         """
         
-        response = GEMINI_CLIENT.models.generate_content(
+        response = self.client.models.generate_content(
             model=self.model_name,
             contents=[prompt],
-            generation_config={
+            config={
                 "temperature": 0.1,
                 "top_p": 0.95,
                 "top_k": 64,
-                "max_output_tokens": 300,
+                "max_output_tokens": 3000,
+                "system_instruction":system_prompt
             },
-            system_instruction=system_prompt
         )
         
         return response.text
